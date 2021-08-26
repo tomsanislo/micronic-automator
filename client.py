@@ -1,4 +1,5 @@
-# echo_client.py
+#!/usr/bin/python
+# -*- coding: utf-8 -*-
 import socket
 
 host = '169.254.88.108'    
