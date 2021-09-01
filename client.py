@@ -3,8 +3,10 @@
 import socket
 import sys
 import traceback
-from PyQt5.QtCore import QCoreApplication, QObject, QThreadPool, pyqtSignal, QRunnable, pyqtSlot
-from PyQt5.QtWidgets import QApplication, QHBoxLayout, QMainWindow, QPushButton, QWidget
+import os
+from PyQt5.QtCore import QCoreApplication, QObject, QThreadPool, Qt, pyqtSignal, QRunnable, pyqtSlot
+from PyQt5.QtGui import QIcon, QPixmap
+from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 class ScannerSignals(QObject):
 
@@ -51,7 +53,12 @@ class DecapperUI(QMainWindow):
         # initial window setup
         super().__init__()
 
-        "basic constructor"
+        # defining paths
+        if getattr(sys, 'frozen', False):
+            self.cwd = os.path.dirname(sys.executable)
+        else:
+            self.cwd = os.path.dirname(os.path.abspath(__file__))
+
 
         self.__readBuffer = ""
 
@@ -98,7 +105,7 @@ class DecapperUI(QMainWindow):
         return str(response_decoded)
 
 
-    def cap(self):
+    def cap(self, progress_callback):
 
         self.socket_com.sendall(str.encode("StartCapping\r\n"))
 
@@ -134,26 +141,59 @@ class DecapperUI(QMainWindow):
         
         self.threadpool.start(decapper)
 
+    def cap_click_callback(self):
+        decapper = Decapper(self.cap) # Any other args, kwargs are passed to the run function
+        # decapper.signals.result.connect(self.scan_output)
+        # decapper.signals.finished.connect(self.scan_complete)
+        # decapper.signals.progress.connect(self.scan_progress)
+        # decapper.signals.save.connect(self.save_file)
+        # decapper.signals.num_scanned.connect(self.num_scanned_up)
+        
+        self.threadpool.start(decapper)
+
     def initUI(self):
 
         # setup of window
-        self.setWindowTitle("Skenovací utilita")
-        #self.setWindowIcon(QIcon((os.path.join(self.cwd, "img", "ic_scan.ico"))))
+        self.setWindowTitle("Recapper remote controller")
+        #self.setWindowIcon(QIcon((os.path.join(self.cwd, "ic_scan.ic"))))
         #self.setStyle(QStyleFactory.create("Windows"))
 
-        btn_decap = QPushButton("Start skenu", self)
+        # define a label to hold an image
+        lbl_logo = QLabel(self)
+        im_logo = QPixmap(os.path.join(self.cwd, "img", "logo_db.png"))
+        lbl_logo.setPixmap(im_logo.scaled(500, 300, Qt.KeepAspectRatio))
+        # lbl_logo.setAlignment(Qt.AlignCenter)
+        lbl_logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # lbl_logo.mousePressEvent = self.show_easter_egg
+
+        btn_decap = QPushButton("DECAP", self)
         btn_decap.clicked.connect(self.decap_click_callback)
+        # btn_decap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         # btn_decap.setEnabled(False)
 
+        btn_cap = QPushButton("CAP", self)
+        btn_cap.clicked.connect(self.cap_click_callback)
+        # btn_cap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        # btn_decap.setEnabled(False)
 
-        lyt_main = QHBoxLayout()
+        lyt_up = QHBoxLayout()
+        # lyt_up.setAlignment(Qt.AlignCenter)
+        lyt_up.addWidget(lbl_logo)
+
+
+        lyt_main = QVBoxLayout()
+        lyt_main.setContentsMargins(100, 100, 100, 100)
+        lyt_main.setAlignment(Qt.AlignCenter)
+        lyt_main.addLayout(lyt_up, 2)
+        lyt_main.addSpacing(100)
         lyt_main.addWidget(btn_decap)
+        lyt_main.addWidget(btn_cap)
 
         # final setup of the window
         widget = QWidget()
         widget.setLayout(lyt_main)
         self.setCentralWidget(widget)
-        self.setFixedSize(1000,500)
+        #self.setFixedSize(1000,500)
         self.show()
 
 if __name__ == '__main__':
