@@ -6,7 +6,7 @@ import traceback
 import os
 from PyQt5.QtCore import QCoreApplication, QObject, QThreadPool, Qt, pyqtSignal, QRunnable, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QProgressDialog, QPushButton, QSizePolicy, QVBoxLayout, QWidget
 
 class ScannerSignals(QObject):
 
@@ -76,6 +76,11 @@ class DecapperUI(QMainWindow):
         # call a function to setup the UI
         self.initUI()
 
+    # defining a function to be called when the user attempts to close the window
+    def closeEvent(self, event):
+        print("closed")
+        self.socket_com.close()
+
 
     def initialise(self, host, port):
 
@@ -120,9 +125,13 @@ class DecapperUI(QMainWindow):
 
         self.socket_com.sendall(str.encode("StartDecapping\r\n"))
 
+        progress_callback.emit(33)
+
         response = self.socket_com.recv(1024)
 
         response_decoded = response.decode("ascii")
+
+        progress_callback.emit(66)
 
         return str(response_decoded)
 
@@ -131,24 +140,45 @@ class DecapperUI(QMainWindow):
 
         self.socket_com.close()
 
+    # defining a function that creates a progress dialog
+    def create_progress_dialog(self, title, text):
+        self.pb_dialog = QProgressDialog(self)
+        self.pb_dialog.setMinimum(0)
+        self.pb_dialog.setLabelText(text)
+        self.pb_dialog.setMaximum(100)
+        self.pb_dialog.setValue(0)
+        self.pb_dialog.setWindowTitle(title)
+        self.pb_dialog.setCancelButton(None)
+        self.pb_dialog.setModal(True)
+
+    def action_progress(self, done_percentage):
+        self.pb_dialog.setValue(done_percentage)
+
+    def action_complete(self):
+        self.action_progress(100) 
+
     def decap_click_callback(self):
         decapper = Decapper(self.decap) # Any other args, kwargs are passed to the run function
         # decapper.signals.result.connect(self.scan_output)
-        # decapper.signals.finished.connect(self.scan_complete)
-        # decapper.signals.progress.connect(self.scan_progress)
+        decapper.signals.finished.connect(self.action_complete)
+        decapper.signals.progress.connect(self.action_progress)
         # decapper.signals.save.connect(self.save_file)
         # decapper.signals.num_scanned.connect(self.num_scanned_up)
-        
+        self.create_progress_dialog("DECAPPING", "Decapping running, please wait")  
+        self.action_progress(0)
+        self.pb_dialog.show()
         self.threadpool.start(decapper)
 
     def cap_click_callback(self):
         decapper = Decapper(self.cap) # Any other args, kwargs are passed to the run function
         # decapper.signals.result.connect(self.scan_output)
-        # decapper.signals.finished.connect(self.scan_complete)
-        # decapper.signals.progress.connect(self.scan_progress)
+        decapper.signals.finished.connect(self.action_complete)
+        decapper.signals.progress.connect(self.action_progress)
         # decapper.signals.save.connect(self.save_file)
         # decapper.signals.num_scanned.connect(self.num_scanned_up)
-        
+        self.create_progress_dialog("CAPPING", "Capping running, please wait")  
+        self.action_progress(0)
+        self.pb_dialog.show()
         self.threadpool.start(decapper)
 
     def initUI(self):
