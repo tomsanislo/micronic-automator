@@ -23,9 +23,11 @@ class Decapper():
 
         try:
 
-            socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            self.socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-            socket_com.connect((host, port))
+            self.socket_com.connect((host, port))
+
+            print("connected")
 
         except:
 
@@ -76,15 +78,15 @@ if __name__ == "__main__":
 
     decapper = Decapper()
 
-    decapper.initialise("169.254.88.108", 1005)
+    decapper.initialise("169.254.140.234", 10005)
 
     print("Initialised")
 
-    print("Calling decapping")
+    print("Calling capping")
 
-    response = decapper.decap()
+    response = decapper.cap()
 
-    print("Called decapping")
+    print("Called capping")
 
     print(response)
 
