@@ -48,6 +48,14 @@ class Decapper(QRunnable):
 
 class DecapperUI(QMainWindow):
 
+    __readBuffer = ""
+
+    socket_com = None
+
+    __fs = None
+
+    __connected = False
+
     def __init__(self):
 
         # initial window setup
@@ -59,16 +67,6 @@ class DecapperUI(QMainWindow):
         else:
             self.cwd = os.path.dirname(os.path.abspath(__file__))
 
-
-        self.__readBuffer = ""
-
-        self.socket_com = None
-
-        self.__fs = None
-
-        self.__connected = False
-
-        self.initialise('169.254.140.234', 10005)
 
         # create a threadpool
         self.threadpool = QThreadPool()
@@ -117,6 +115,8 @@ class DecapperUI(QMainWindow):
         response = self.socket_com.recv(1024)
 
         response_decoded = response.decode("ascii")
+        
+        self.socket_com.close()
 
         return str(response_decoded)
 
@@ -132,6 +132,8 @@ class DecapperUI(QMainWindow):
         response_decoded = response.decode("ascii")
 
         progress_callback.emit(66)
+
+        self.socket_com.close()
 
         return str(response_decoded)
 
@@ -155,11 +157,16 @@ class DecapperUI(QMainWindow):
         self.pb_dialog.setValue(done_percentage)
 
     def action_complete(self):
-        self.action_progress(100) 
+        self.action_progress(100)
+        self.socket_com.close()
+
+    def action_output(self, string):
+        print(string)
 
     def decap_click_callback(self):
+        self.initialise('169.254.140.234', 10005)
         decapper = Decapper(self.decap) # Any other args, kwargs are passed to the run function
-        # decapper.signals.result.connect(self.scan_output)
+        decapper.signals.result.connect(self.action_output)
         decapper.signals.finished.connect(self.action_complete)
         decapper.signals.progress.connect(self.action_progress)
         # decapper.signals.save.connect(self.save_file)
@@ -170,6 +177,7 @@ class DecapperUI(QMainWindow):
         self.threadpool.start(decapper)
 
     def cap_click_callback(self):
+        self.initialise('169.254.140.234', 10005)
         decapper = Decapper(self.cap) # Any other args, kwargs are passed to the run function
         # decapper.signals.result.connect(self.scan_output)
         decapper.signals.finished.connect(self.action_complete)
