@@ -84,7 +84,7 @@ if __name__ == "__main__":
 
     print("Calling capping")
 
-    response = decapper.cap()
+    response = decapper.decap()
 
     print("Called capping")
 
