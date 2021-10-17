@@ -4,9 +4,11 @@ import socket
 import sys
 import traceback
 import os
+import time
+from typing import final
 from PyQt5.QtCore import QCoreApplication, QObject, QThreadPool, Qt, pyqtSignal, QRunnable, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
-from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QProgressDialog, QPushButton, QSizePolicy, QVBoxLayout, QWidget
+from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QProgressDialog, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout, QWidget, QLineEdit
 
 class ScannerSignals(QObject):
 
@@ -56,6 +58,21 @@ class DecapperUI(QMainWindow):
 
     __connected = False
 
+    sb_num = None
+
+    cycle_num = 0
+
+    response_cycle = ""
+
+    ip_address = ""
+    port = ""
+    status_bar = None
+    btn_connect = None
+    btn_disconnect = None
+    le_port = None
+    le_ip = None
+
+
     def __init__(self):
 
         # initial window setup
@@ -67,6 +84,8 @@ class DecapperUI(QMainWindow):
         else:
             self.cwd = os.path.dirname(os.path.abspath(__file__))
 
+        self.status_bar = self.statusBar()
+
 
         # create a threadpool
         self.threadpool = QThreadPool()
@@ -76,8 +95,11 @@ class DecapperUI(QMainWindow):
 
     # defining a function to be called when the user attempts to close the window
     def closeEvent(self, event):
-        print("closed")
-        self.socket_com.close()
+        try:
+            self.socket.close()
+        except:
+            pass
+        sys.exit()
 
 
     def initialise(self, host, port):
@@ -97,50 +119,125 @@ class DecapperUI(QMainWindow):
             print("Couldn't establish a connection with the server")
 
 
-    def get_state(self):
+    def get_state(self, **progress_callback):
 
-        self.socket_com.sendall(str.encode("GetState\r\n"))
+        response_decoded = ""
 
-        response = self.socket_com.recv(1024)
+        socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        response_decoded = response.decode("ascii")
+        try:
+            socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            socket_com.connect(('169.254.140.234', 10005))
+
+            socket_com.sendall(str.encode("GetState\r\n"))
+
+
+            response = socket_com.recv(1024)
+
+            response_decoded = response.decode("ascii")
+
+        except:
+            traceback.print_exc()
+            print("couldnt get state")
+
+        try:
+            socket_com.close()
+        except:
+            traceback.print_exc()
+            print("couldnt disconnect")
 
         return str(response_decoded)
 
 
     def cap(self, progress_callback):
 
-        self.socket_com.sendall(str.encode("StartCapping\r\n"))
+        response_decoded = ""
 
-        response = self.socket_com.recv(1024)
+        socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        response_decoded = response.decode("ascii")
-        
-        self.socket_com.close()
+        try:
+            socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+            socket_com.connect(('169.254.140.234', 10005))
+
+            socket_com.sendall(str.encode("StartCapping\r\n"))
+
+            progress_callback.emit(33)
+
+            response = socket_com.recv(1024)
+
+            response_decoded = response.decode("ascii")
+
+            progress_callback.emit(66)
+
+        except:
+            traceback.print_exc()
+            print("couldnt cap")
+
+        try:
+            socket_com.close()
+        except:
+            traceback.print_exc()
+            print("couldnt disconnect")
+
+        progress_callback.emit(100)
 
         return str(response_decoded)
 
 
     def decap(self, progress_callback):
 
-        self.socket_com.sendall(str.encode("StartDecapping\r\n"))
+        response_decoded = ""
 
-        progress_callback.emit(33)
+        socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        response = self.socket_com.recv(1024)
+        try:
+            socket_com = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-        response_decoded = response.decode("ascii")
+            socket_com.connect(('169.254.140.234', 10005))
 
-        progress_callback.emit(66)
+            socket_com.sendall(str.encode("StartDecapping\r\n"))
 
-        self.socket_com.close()
+            progress_callback.emit(33)
+
+            response = socket_com.recv(1024)
+
+            response_decoded = response.decode("ascii")
+
+            progress_callback.emit(66)
+
+        except:
+            traceback.print_exc()
+            print("couldnt decap")
+
+        try:
+            socket_com.close()
+        except:
+            traceback.print_exc()
+            print("couldnt disconnect")
+
+        progress_callback.emit(100)
 
         return str(response_decoded)
 
 
-    def disconnect(self):
+    def cycle(self, cycle_num, progress_callback):
+        print("cycle called")
+        for i in range(1, cycle_num + 1):
+            
+            self.state_click_callback()
 
-        self.socket_com.close()
+            print(self.response_cycle)
+            
+            while self.response_cycle != "2":
+                self.response_cycle = self.state_click_callback()
+                print(self.response_cycle)
+                time.sleep(4)
+            if self.response_cycle is not None and self.response_cycle != "":
+                print("response in cycle is " + self.response_cycle)
+
+            print("cycle " + str(i))
 
     # defining a function that creates a progress dialog
     def create_progress_dialog(self, title, text):
@@ -158,61 +255,160 @@ class DecapperUI(QMainWindow):
 
     def action_complete(self):
         self.action_progress(100)
-        self.socket_com.close()
+
+
+    def cycle_output(self, string):
+        self.response_cycle = string
+        if self.response_cycle is not None:
+            print("the response is " + self.response_cycle)
 
     def action_output(self, string):
         print(string)
 
     def decap_click_callback(self):
-        self.initialise('169.254.140.234', 10005)
+        
         decapper = Decapper(self.decap) # Any other args, kwargs are passed to the run function
         decapper.signals.result.connect(self.action_output)
         decapper.signals.finished.connect(self.action_complete)
         decapper.signals.progress.connect(self.action_progress)
-        # decapper.signals.save.connect(self.save_file)
-        # decapper.signals.num_scanned.connect(self.num_scanned_up)
         self.create_progress_dialog("DECAPPING", "Decapping running, please wait")  
         self.action_progress(0)
         self.pb_dialog.show()
         self.threadpool.start(decapper)
 
     def cap_click_callback(self):
-        self.initialise('169.254.140.234', 10005)
+
         decapper = Decapper(self.cap) # Any other args, kwargs are passed to the run function
-        # decapper.signals.result.connect(self.scan_output)
+        decapper.signals.result.connect(self.action_output)
         decapper.signals.finished.connect(self.action_complete)
         decapper.signals.progress.connect(self.action_progress)
-        # decapper.signals.save.connect(self.save_file)
-        # decapper.signals.num_scanned.connect(self.num_scanned_up)
         self.create_progress_dialog("CAPPING", "Capping running, please wait")  
         self.action_progress(0)
         self.pb_dialog.show()
         self.threadpool.start(decapper)
+
+    def state_click_callback(self, *progress_callback):
+        decapper = Decapper(self.get_state) # Any other args, kwargs are passed to the run function
+        decapper.signals.result.connect(self.cycle_output)
+        # decapper.signals.finished.connect(self.action_complete)
+        # decapper.signals.progress.connect(self.action_progress)
+        # decapper.signals.save.connect(self.save_file)
+        # decapper.signals.num_scanned.connect(self.num_scanned_up)
+        # self.create_progress_dialog("CAPPING", "Capping running, please wait")  
+        # self.action_progress(0)
+        # self.pb_dialog.show()
+        self.threadpool.start(decapper)
+
+    def btn_ip_callback(self):
+
+        try:
+            socket.inet_aton(self.le_ip.text())
+            self.ip_address = self.le_ip.text()
+            self.port = self.le_port.text()
+            self.status_bar.showMessage("IP address was set to " + self.ip_address + ":" + self.port)
+        except socket.error:
+            self.status_bar.showMessage("IP address is in an incorrect format")
+
+    def btn_connect_callback(self):
+
+        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            self.socket.connect((self.ip_address, self.port))
+            self.status_bar.showMessage("Connected to recapper at " + self.ip_address + ":" + self.port)
+            self.btn_connect.setEnabled(False)
+            self.btn_disconnect.setEnabled(False)
+        except:
+            self.status_bar.showMessage("Could not connect to recapper at " + self.ip_address + ":" + self.port)
+            
+
+    def sp_num_callback(self):
+        self.cycle_num = self.sb_num.value()
+        
+    def cycle_click_callback(self):
+
+        if self.cycle_num > 0:
+
+            decapper = Decapper(self.cycle, self.cycle_num) # Any other args, kwargs are passed to the run function
+            decapper.signals.result.connect(self.cycle_output)
+            decapper.signals.finished.connect(self.action_complete)
+            decapper.signals.progress.connect(self.action_progress)
+            # decapper.signals.save.connect(self.save_file)
+            # decapper.signals.num_scanned.connect(self.num_scanned_up)
+            self.create_progress_dialog("CYCLING", "Capping running, please wait")  
+            # self.action_progress(0)
+            # self.pb_dialog.show()
+            self.threadpool.start(decapper)
 
     def initUI(self):
 
         # setup of window
         self.setWindowTitle("Recapper remote controller")
         #self.setWindowIcon(QIcon((os.path.join(self.cwd, "ic_scan.ic"))))
-        #self.setStyle(QStyleFactory.create("Windows"))
 
         # define a label to hold an image
         lbl_logo = QLabel(self)
         im_logo = QPixmap(os.path.join(self.cwd, "img", "logo_db.png"))
         lbl_logo.setPixmap(im_logo.scaled(500, 300, Qt.KeepAspectRatio))
-        # lbl_logo.setAlignment(Qt.AlignCenter)
         lbl_logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # lbl_logo.mousePressEvent = self.show_easter_egg
 
-        btn_decap = QPushButton("DECAP", self)
+        lbl_ip = QLabel(self)
+        lbl_ip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        lbl_ip.setText("IP Address")
+
+        lbl_port = QLabel(self)
+        lbl_port.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        lbl_port.setText("Port")
+
+
+        self.le_ip = QLineEdit()
+
+        self.le_port = QLineEdit()
+
+        btn_ip = QPushButton()
+        btn_ip.setText("Save IP Address and port")
+        btn_ip.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        btn_ip.clicked.connect(self.btn_ip_callback)
+
+        lyt_ip = QHBoxLayout()
+        lyt_ip.addWidget(lbl_ip)
+        lyt_ip.addWidget(self.le_ip)
+        lyt_ip.addWidget(lbl_port)
+        lyt_ip.addWidget(self.le_port)
+        lyt_ip.addWidget(btn_ip)
+
+        self.btn_connect = QPushButton()
+        self.btn_connect.setText("Connect")
+        self.btn_connect.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.btn_connect.clicked.connect(self.btn_connect_callback)
+
+        self.btn_disconnect = QPushButton()
+        self.btn_disconnect.setText("Disconnect")
+        self.btn_disconnect.setEnabled(False)
+        self.btn_disconnect.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+
+        lyt_connection = QHBoxLayout()
+        lyt_connection.addWidget(self.btn_connect)
+        lyt_connection.addWidget(self.btn_disconnect)
+
+        btn_decap = QPushButton("Decap vials", self)
         btn_decap.clicked.connect(self.decap_click_callback)
-        # btn_decap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        btn_decap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         # btn_decap.setEnabled(False)
 
-        btn_cap = QPushButton("CAP", self)
+        btn_cap = QPushButton("Cap vials", self)
         btn_cap.clicked.connect(self.cap_click_callback)
-        # btn_cap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        btn_cap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         # btn_decap.setEnabled(False)
+
+        lyt_capping = QHBoxLayout()
+        lyt_capping.addWidget(btn_cap)
+        lyt_capping.addWidget(btn_decap)
+
+        self.sb_num = QSpinBox()
+        self.sb_num.valueChanged.connect(self.sp_num_callback)
+
+        btn_state = QPushButton("CYCLE", self)
+        btn_state.clicked.connect(self.cycle_click_callback)
 
         lyt_up = QHBoxLayout()
         # lyt_up.setAlignment(Qt.AlignCenter)
@@ -224,8 +420,14 @@ class DecapperUI(QMainWindow):
         lyt_main.setAlignment(Qt.AlignCenter)
         lyt_main.addLayout(lyt_up, 2)
         lyt_main.addSpacing(100)
-        lyt_main.addWidget(btn_decap)
-        lyt_main.addWidget(btn_cap)
+        lyt_main.addLayout(lyt_ip)
+        lyt_main.addSpacing(50)
+        lyt_main.addLayout(lyt_connection)
+        lyt_main.addSpacing(50)
+        lyt_main.addLayout(lyt_capping)
+        lyt_main.addWidget(self.sb_num)
+        lyt_main.addWidget(btn_state)
+
 
         # final setup of the window
         widget = QWidget()
