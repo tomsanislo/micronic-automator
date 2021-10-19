@@ -5,8 +5,7 @@ import sys
 import traceback
 import os
 import time
-from typing import final
-from PyQt5.QtCore import QCoreApplication, QObject, QThreadPool, Qt, pyqtSignal, QRunnable, pyqtSlot
+from PyQt5.QtCore import QObject, QThreadPool, Qt, pyqtSignal, QRunnable, pyqtSlot
 from PyQt5.QtGui import QIcon, QPixmap
 from PyQt5.QtWidgets import QApplication, QHBoxLayout, QLabel, QMainWindow, QProgressDialog, QPushButton, QSizePolicy, QSpinBox, QVBoxLayout, QWidget, QLineEdit
 
@@ -69,8 +68,12 @@ class DecapperUI(QMainWindow):
     status_bar = None
     btn_connect = None
     btn_disconnect = None
+    btn_cap = None
+    btn_decap = None
     le_port = None
     le_ip = None
+    lbl_state = None
+    sck = None
 
 
     def __init__(self):
@@ -302,21 +305,45 @@ class DecapperUI(QMainWindow):
     def btn_ip_callback(self):
 
         try:
-            socket.inet_aton(self.le_ip.text())
-            self.ip_address = self.le_ip.text()
-            self.port = self.le_port.text()
-            self.status_bar.showMessage("IP address was set to " + self.ip_address + ":" + self.port)
+            if self.le_port.text().isdecimal():
+                socket.inet_aton(self.le_ip.text())
+                self.ip_address = self.le_ip.text()
+                self.port = self.le_port.text()
+                self.status_bar.showMessage("IP address was set to " + self.ip_address + ":" + self.port)
+                self.btn_connect.setEnabled(True)
+            else:
+                self.status_bar.showMessage("Please enter a valid port number")
         except socket.error:
             self.status_bar.showMessage("IP address is in an incorrect format")
 
     def btn_connect_callback(self):
 
-        self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sck = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            self.socket.connect((self.ip_address, self.port))
+            self.sck.connect((self.ip_address, self.port))
             self.status_bar.showMessage("Connected to recapper at " + self.ip_address + ":" + self.port)
             self.btn_connect.setEnabled(False)
+            self.btn_disconnect.setEnabled(True)
+            self.btn_cap.setEnabled(True)
+            self.btn_decap.setEnabled(True)
+            self.lbl_state.setText("Connected")
+            self.lbl_state.setStyleSheet("color: green")
+
+        except:
+            self.status_bar.showMessage("Could not connect to recapper at " + self.ip_address + ":" + self.port)
+
+    def btn_disconnect_callback(self):
+
+        try:
+            self.sck.close()
+            self.status_bar.showMessage("Disonnected from recapper at ")
+            self.btn_connect.setEnabled(True)
             self.btn_disconnect.setEnabled(False)
+            self.btn_cap.setEnabled(False)
+            self.btn_decap.setEnabled(False)
+            self.lbl_state.setText("Disconnected")
+            self.lbl_state.setStyleSheet("color: red")
+
         except:
             self.status_bar.showMessage("Could not connect to recapper at " + self.ip_address + ":" + self.port)
             
@@ -345,10 +372,23 @@ class DecapperUI(QMainWindow):
         self.setWindowTitle("Recapper remote controller")
         #self.setWindowIcon(QIcon((os.path.join(self.cwd, "ic_scan.ic"))))
 
+        lbl_state_title = QLabel(self)
+        lbl_state_title.setText("State:")
+        lbl_state_title.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        
+        self.lbl_state = QLabel(self)
+        self.lbl_state.setText("Disconnected")
+        self.lbl_state.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.lbl_state.setStyleSheet("color: red")
+
+        lyt_state = QHBoxLayout()
+        lyt_state.addWidget(lbl_state_title)
+        lyt_state.addWidget(self.lbl_state)
+        
         # define a label to hold an image
         lbl_logo = QLabel(self)
         im_logo = QPixmap(os.path.join(self.cwd, "img", "logo_db.png"))
-        lbl_logo.setPixmap(im_logo.scaled(500, 300, Qt.KeepAspectRatio))
+        lbl_logo.setPixmap(im_logo.scaled(300, 300, Qt.KeepAspectRatio))
         lbl_logo.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
         lbl_ip = QLabel(self)
@@ -380,38 +420,45 @@ class DecapperUI(QMainWindow):
         self.btn_connect.setText("Connect")
         self.btn_connect.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         self.btn_connect.clicked.connect(self.btn_connect_callback)
+        self.btn_connect.setEnabled(False)
 
         self.btn_disconnect = QPushButton()
         self.btn_disconnect.setText("Disconnect")
         self.btn_disconnect.setEnabled(False)
         self.btn_disconnect.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.btn_disconnect.clicked.connect(self.btn_disconnect_callback)
 
         lyt_connection = QHBoxLayout()
         lyt_connection.addWidget(self.btn_connect)
         lyt_connection.addWidget(self.btn_disconnect)
 
-        btn_decap = QPushButton("Decap vials", self)
-        btn_decap.clicked.connect(self.decap_click_callback)
-        btn_decap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # btn_decap.setEnabled(False)
+        self.btn_decap = QPushButton("Decap vials", self)
+        self.btn_decap.clicked.connect(self.decap_click_callback)
+        self.btn_decap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.btn_decap.setEnabled(False)
 
-        btn_cap = QPushButton("Cap vials", self)
-        btn_cap.clicked.connect(self.cap_click_callback)
-        btn_cap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
-        # btn_decap.setEnabled(False)
+        self.btn_cap = QPushButton("Cap vials", self)
+        self.btn_cap.clicked.connect(self.cap_click_callback)
+        self.btn_cap.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.btn_cap.setEnabled(False)
 
         lyt_capping = QHBoxLayout()
-        lyt_capping.addWidget(btn_cap)
-        lyt_capping.addWidget(btn_decap)
+        lyt_capping.addWidget(self.btn_cap)
+        lyt_capping.addWidget(self.btn_decap)
 
         self.sb_num = QSpinBox()
         self.sb_num.valueChanged.connect(self.sp_num_callback)
+        self.sb_num.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
+        self.sb_num.setAlignment(Qt.AlignCenter)
 
-        btn_state = QPushButton("CYCLE", self)
+        btn_state = QPushButton("Start a cycle", self)
         btn_state.clicked.connect(self.cycle_click_callback)
+        btn_state.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
 
-        lyt_up = QHBoxLayout()
-        # lyt_up.setAlignment(Qt.AlignCenter)
+        lyt_up = QVBoxLayout()
+        lyt_up.setAlignment(Qt.AlignCenter)
+        lyt_up.addLayout(lyt_state)
+        lyt_up.addSpacing(100)
         lyt_up.addWidget(lbl_logo)
 
 
@@ -433,7 +480,7 @@ class DecapperUI(QMainWindow):
         widget = QWidget()
         widget.setLayout(lyt_main)
         self.setCentralWidget(widget)
-        #self.setFixedSize(1000,500)
+        self.setFixedSize(1000,700)
         self.show()
 
 if __name__ == '__main__':
