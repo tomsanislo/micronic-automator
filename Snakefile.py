@@ -1,7 +1,7 @@
 # echo_client.py
 import socket
 
-host = '169.254.88.108'
+host = '169.254.44.133'
 port = 10005                   # The same port as used by the server
 s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 s.connect((host, port))
