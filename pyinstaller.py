@@ -3,7 +3,6 @@ import os, sys
     
 PyInstaller.__main__.run([  
      '--onefile',
-     '--windowed',
-     "--icon=icon.ico"
-     ,os.path.join(os.path.dirname(sys.executable), 'client.py'),                                        
+     '--windowed'
+     ,os.path.join(os.getcwd(), 'client.py'),                                        
 ])

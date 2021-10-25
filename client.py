@@ -464,7 +464,7 @@ class DecapperUI(QMainWindow):
     def btn_disconnect_callback(self):
 
         try:
-            self.sck.()
+            self.sck.close()
             self.status_bar.showMessage("Disconnected from recapper")
             self.btn_connect.setEnabled(True)
             self.btn_disconnect.setEnabled(False)
